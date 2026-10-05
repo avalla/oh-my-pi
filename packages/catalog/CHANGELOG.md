@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added MiniCPM5 model identity detection for dialect selection.
+
 ## [18.6.2] - 2026-10-04
 
 ### Fixed

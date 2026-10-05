@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added MiniCPM5's native XML in-band tool-call dialect.
+
 ## [18.6.1] - 2026-10-04
 
 ### Fixed

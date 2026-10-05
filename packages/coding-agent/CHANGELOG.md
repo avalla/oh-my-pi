@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added automatic MiniCPM5 tool-dialect selection for models without native tools.
+
 ## [18.6.2] - 2026-10-04
 
 ### Fixed

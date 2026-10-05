@@ -873,9 +873,12 @@ export function resolveDialect(
 ): Dialect | undefined {
 	if (format === "native") return undefined;
 	if (format === "auto") {
+		const preferred = model?.id ? preferredDialect(model.id) : "glm";
+		// MiniCPM5's function/param protocol is emitted in the text stream even
+		// when a host advertises generic tool support. Its model identity is the
+		// authoritative signal for selecting the owned dialect.
+		if (preferred === "minicpm5") return preferred;
 		if (model?.supportsTools !== false) return undefined;
-		if (!model.id) return "glm";
-		const preferred = preferredDialect(model.id);
 		return preferred === FALLBACK_DIALECT ? "glm" : preferred;
 	}
 	return format;

@@ -4,6 +4,9 @@ import { resolveDialect } from "@oh-my-pi/pi-coding-agent/sdk";
 describe("resolveDialect", () => {
 	it("uses preferred owned dialects in auto mode for models without native tools", () => {
 		expect(resolveDialect("auto", { id: "MiniMax-M3", supportsTools: false })).toBe("minimax");
+		expect(resolveDialect("auto", { id: "MiniCPM5-8B", supportsTools: false })).toBe("minicpm5");
+		expect(resolveDialect("auto", { id: "MiniCPM5-8B", supportsTools: true })).toBe("minicpm5");
+		expect(resolveDialect("auto", { id: "MiniCPM5-8B" })).toBe("minicpm5");
 		expect(resolveDialect("auto", { id: "qwen3-coder-plus", supportsTools: false })).toBe("qwen3");
 		expect(resolveDialect("auto", { id: "unclassified-model-id", supportsTools: false })).toBe("glm");
 		expect(resolveDialect("auto", { supportsTools: false })).toBe("glm");
