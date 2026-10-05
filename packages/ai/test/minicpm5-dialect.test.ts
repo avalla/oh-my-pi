@@ -114,6 +114,21 @@ describe("MiniCPM5 dialect", () => {
 		expect(calls[0]?.arguments).toEqual({ path: "out.txt", content });
 	});
 
+	it("preserves whitespace in non-CDATA string parameters", () => {
+		const calls = toolEnds(feed('<function name="read"><param name="path">  indented  </param></function>'));
+		expect(calls[0]?.arguments).toEqual({ path: "  indented  " });
+	});
+
+	it("does not normalize tokenizer text inside CDATA", () => {
+		const content = '<functionname="not-a-tag">\u0120<paramname="literal">';
+		const calls = toolEnds(
+			feed(
+				`<function name="write"><param name="path">out.txt</param><param name="content"><![CDATA[${content}]]></param></function>`,
+			),
+		);
+		expect(calls[0]?.arguments).toEqual({ path: "out.txt", content });
+	});
+
 	it("renders calls that the scanner parses back", () => {
 		const call: ToolCall = {
 			type: "toolCall",

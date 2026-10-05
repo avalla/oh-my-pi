@@ -1,7 +1,6 @@
 import type { Message, ToolCall } from "../types";
 import { invalidToolCallArguments } from "../utils/tool-call-arguments";
-import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
-import { buildArgShapes, coerceValue, mintToolCallId, partialSuffixOverlapAny, resolveToolSchema } from "./coercion";
+import { buildArgShapes, coerceValue, mintToolCallId, partialSuffixOverlapAny } from "./coercion";
 import dialectPrompt from "./minicpm5.md" with { type: "text" };
 import {
 	escapeXmlAttr,
@@ -39,10 +38,9 @@ type State = "outside" | "thinking" | "tool";
 
 interface ToolMetadata {
 	readonly properties: Record<string, unknown>;
-	readonly required: ReadonlySet<string>;
 }
 
-function normalizeModelOutput(text: string): string {
+function normalizeTagHeader(text: string): string {
 	return text
 		.replaceAll(TOKENIZER_SPACE, " ")
 		.replaceAll("<functionname=", "<function name=")
@@ -77,13 +75,6 @@ function decodeXmlEntities(value: string): string {
 	});
 }
 
-function requiredProperties(tool: NonNullable<InbandScannerOptions["tools"]>[number]): ReadonlySet<string> {
-	const schema = resolveToolSchema(tool);
-	const required = schema.required;
-	if (!Array.isArray(required)) return new Set();
-	return new Set(required.filter((value): value is string => typeof value === "string" && value !== INTENT_FIELD));
-}
-
 export class MiniCPM5InbandScanner implements InbandScanner {
 	#buffer = "";
 	#state: State = "outside";
@@ -101,19 +92,17 @@ export class MiniCPM5InbandScanner implements InbandScanner {
 		for (const tool of options.tools ?? []) {
 			this.#tools.set(tool.name, {
 				properties: shapes.get(tool.name)?.properties ?? {},
-				required: requiredProperties(tool),
 			});
 		}
 	}
 
 	feed(text: string): InbandScanEvent[] {
 		if (text.length === 0) return [];
-		this.#buffer = normalizeModelOutput(this.#buffer + text);
+		this.#buffer += text;
 		return this.#consume(false);
 	}
 
 	flush(): InbandScanEvent[] {
-		this.#buffer = normalizeModelOutput(this.#buffer);
 		return this.#consume(true);
 	}
 
@@ -203,7 +192,7 @@ export class MiniCPM5InbandScanner implements InbandScanner {
 				return;
 			}
 
-			const openTag = this.#buffer.slice(0, openEnd + 1);
+			const openTag = normalizeTagHeader(this.#buffer.slice(0, openEnd + 1));
 			const match = FUNCTION_OPEN_RE.exec(openTag);
 			const name = match?.[2]?.trim() ?? "";
 			if (!name || (this.#tools.size > 0 && !this.#tools.has(name))) {
@@ -256,14 +245,11 @@ export class MiniCPM5InbandScanner implements InbandScanner {
 			const openEnd = body.indexOf(">", paramStart + "<param".length);
 			if (openEnd === -1) return new Error("Unterminated MiniCPM5 <param> tag");
 
-			const openTag = body.slice(paramStart, openEnd + 1);
+			const openTag = normalizeTagHeader(body.slice(paramStart, openEnd + 1));
 			const match = PARAM_OPEN_RE.exec(openTag);
 			const key = match?.[2]?.trim() ?? "";
 			if (!key) return new Error("MiniCPM5 <param> is missing a valid name");
 			if (seen.has(key)) return new Error(`Duplicate MiniCPM5 parameter: ${key}`);
-			if (metadata && Object.keys(metadata.properties).length > 0 && !(key in metadata.properties)) {
-				return new Error(`Unknown MiniCPM5 parameter for ${this.#name}: ${key}`);
-			}
 			seen.add(key);
 
 			const valueStart = openEnd + 1;
@@ -281,16 +267,13 @@ export class MiniCPM5InbandScanner implements InbandScanner {
 			} else {
 				closeStart = body.indexOf(PARAM_CLOSE, valueStart);
 				if (closeStart === -1) return new Error(`Unterminated MiniCPM5 parameter: ${key}`);
-				rawValue = decodeXmlEntities(body.slice(valueStart, closeStart).trim());
+				rawValue = decodeXmlEntities(body.slice(valueStart, closeStart));
 			}
 
 			argumentsValue[key] = coerceValue(rawValue, metadata?.properties[key]);
 			cursor = closeStart + PARAM_CLOSE.length;
 		}
 
-		for (const required of metadata?.required ?? []) {
-			if (!(required in argumentsValue)) return new Error(`Missing required MiniCPM5 parameter: ${required}`);
-		}
 		return argumentsValue;
 	}
 
